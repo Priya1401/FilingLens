@@ -2,7 +2,7 @@ import os
 import io
 import re
 import sys
-import pdfplumber
+from bs4 import BeautifulSoup
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import udf, col, element_at, split
 from pyspark.sql.types import StringType
@@ -22,28 +22,28 @@ def create_spark_session():
 
 # --- UDFS ---
 
-def parse_pdf(file_content):
+def parse_html(file_content):
     """
-    Extracts text from PDF bytes using pdfplumber.
+    Extracts text from HTML bytes using BeautifulSoup.
     """
     try:
-        with pdfplumber.open(io.BytesIO(file_content)) as pdf:
-            text_content = []
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text_content.append(page_text)
-            return "\n".join(text_content)
+        # Convert bytes to string (assume utf-8)
+        html_str = file_content.decode('utf-8', errors='ignore')
+        soup = BeautifulSoup(html_str, 'html.parser')
+        
+        # Get text
+        text = soup.get_text(separator=' ')
+        return text
     except Exception as e:
-        return f"Error parsing PDF: {str(e)}"
+        return f"Error parsing HTML: {str(e)}"
 
-parse_pdf_udf = udf(parse_pdf, StringType())
+# Register UDF
+parse_html_udf = udf(parse_html, StringType())
 
 def clean_text(text):
     """
     Cleans the extracted text:
-    - Removes Table of Contents lines.
-    - Removes headers/footers (approximate).
+    - Removes Table of Contents line references.
     - Normalizes whitespace.
     """
     if not text:
@@ -52,11 +52,8 @@ def clean_text(text):
     # 1. Normalize whitespace
     text = re.sub(r'\s+', ' ', text).strip()
     
-    # 2. Remove "Table of Contents" references
+    # 2. Remove "Table of Contents" references (heuristic)
     text = re.sub(r'Table of Contents', '', text, flags=re.IGNORECASE)
-    
-    # 3. Remove common header/footer patterns
-    text = re.sub(r'Page \d+ of \d+', '', text)
     
     return text
 
@@ -65,25 +62,28 @@ clean_text_udf = udf(clean_text, StringType())
 def run_ingestion(input_path, output_path):
     spark = create_spark_session()
     
-    print(f"Reading PDFs from {input_path}...")
+    print(f"Reading HTMLs from {input_path}...")
+    # Change filter to *.html
     df = spark.read.format("binaryFile") \
-        .option("pathGlobFilter", "*.pdf") \
+        .option("pathGlobFilter", "*.html") \
         .option("recursiveFileLookup", "true") \
         .load(input_path)
     
     if df.count() == 0:
-        print(f"No PDF files found in {input_path}")
+        print(f"No HTML files found in {input_path}")
         spark.stop()
         return
 
     print("Extracting Metadata...")
     df = df.withColumn("path_parts", split(col("path"), "/"))
     
-    # Extract Ticker from path (assuming standard sec-edgar-downloader structure)
+    # Extract Ticker from path
+    # Path: .../sec-edgar-filings/TICKER/10-K/...
+    # element -4 is usually Ticker in this structure
     df = df.withColumn("ticker", element_at(col("path_parts"), -4))
     
-    print("Parsing PDFs...")
-    df_parsed = df.withColumn("raw_text", parse_pdf_udf(col("content")))
+    print("Parsing HTMLs...")
+    df_parsed = df.withColumn("raw_text", parse_html_udf(col("content")))
     
     print("Cleaning Text...")
     df_cleaned = df_parsed.withColumn("cleaned_text", clean_text_udf(col("raw_text")))
@@ -106,6 +106,7 @@ if __name__ == "__main__":
     INPUT_PATH = os.path.join(BASE_DIR, "data/raw_pdfs") 
     OUTPUT_PATH = os.path.join(BASE_DIR, "data/parquet")
     
+    # Fallback to verify we are looking in the right place
     if not os.path.exists(INPUT_PATH):
         if os.path.exists(os.path.join(BASE_DIR, "sec-edgar-filings")):
              INPUT_PATH = os.path.join(BASE_DIR, "sec-edgar-filings")
