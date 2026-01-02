@@ -1,0 +1,7 @@
+pyspark
+pdfplumber
+langchain-text-splitters
+pandas
+python-dotenv
+google-generativeai
+pinecone-client
