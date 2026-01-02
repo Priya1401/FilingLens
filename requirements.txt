@@ -5,3 +5,4 @@ pandas
 python-dotenv
 google-generativeai
 pinecone-client
+sec-edgar-downloader
