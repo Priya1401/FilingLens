@@ -6,5 +6,5 @@ pandas
 pyarrow
 python-dotenv
 google-generativeai
-pinecone-client
+pinecone
 sec-edgar-downloader
