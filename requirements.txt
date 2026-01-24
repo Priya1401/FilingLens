@@ -8,3 +8,4 @@ python-dotenv
 google-generativeai
 pinecone
 sec-edgar-downloader
+streamlit

@@ -1,32 +1,33 @@
 import os
+import sys
 from sec_edgar_downloader import Downloader
 
-def download_filings(tickers, years, download_dir):
-    """
-    Downloads 10-K filings for the specified tickers and years.
+def download_filings():
+    # Use absolute path
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    download_dir = os.path.join(base_dir, "data", "raw_pdfs")
     
-    Args:
-        tickers (list): List of stock tickers.
-        years (list): List of years to download.
-        download_dir (str): Directory where downloaded files will be stored.
-    """
-    dl = Downloader("FilingLens", "your.email@example.com", download_dir)
-
+    # 1. Initialize Downloader with valid User Agent structure
+    # SEC requires "Name email@domain.com"
+    dl = Downloader("FilingLens", "filinglens_user@example.com", download_dir)
+    
+    tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]
+    
+    # Limit number of filings per ticker to save time/space
+    limit = 5 
+    
+    print(f"Downloading filings to {download_dir}...")
+    
     for ticker in tickers:
         print(f"Downloading 10-Ks for {ticker}...")
-        for year in years:
-             try:
-                 dl.get("10-K", ticker, limit=5, download_details=False)
-             except Exception as e:
-                 print(f"Failed to download for {ticker}: {e}")
+        try:
+            # get() returns number of files downloaded
+            count = dl.get("10-K", ticker, limit=limit, download_details=True)
+            print(f"  -> Downloaded {count} filings for {ticker}")
+        except Exception as e:
+            print(f"  -> Failed to download {ticker}: {e}")
+
+    print("Download complete.")
 
 if __name__ == "__main__":
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    RAW_DIR = os.path.join(BASE_DIR, "data/raw_pdfs")
-    
-    # User requested: AAPL, MSFT, GOOGL, AMZN, NVDA
-    TICKERS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]
-    
-    print(f"Downloading filings to {RAW_DIR}...")
-    download_filings(TICKERS, [], RAW_DIR)
-    print("Download complete.")
+    download_filings()

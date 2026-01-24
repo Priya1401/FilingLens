@@ -1,21 +1,22 @@
 import os
-import google.generativeai as genai
 from dotenv import load_dotenv
 
-load_dotenv()
-
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
-if not GOOGLE_API_KEY:
-    raise ValueError("GOOGLE_API_KEY not found in environment variables.")
-
-genai.configure(api_key=GOOGLE_API_KEY)
+# Helpers
+def _configure_genai():
+    import google.generativeai as genai
+    load_dotenv()
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    if not GOOGLE_API_KEY:
+        raise ValueError("GOOGLE_API_KEY not found in environment variables.")
+    genai.configure(api_key=GOOGLE_API_KEY)
+    return genai
 
 def get_embedding(text, model="models/text-embedding-004"):
     """
     Generates embedding for a given text using Gemini.
     """
     try:
+        genai = _configure_genai()
         # text-embedding-004 supports retrieval_document and retrieval_query task types
         # For simplicity in this wrapper we default to the model's auto behavior or specify query
         result = genai.embed_content(
@@ -33,6 +34,7 @@ def get_query_embedding(text, model="models/text-embedding-004"):
     Generates embedding for a query (optimized for retrieval matching).
     """
     try:
+        genai = _configure_genai()
         result = genai.embed_content(
             model=model,
             content=text,

@@ -1,2 +1,12 @@
 venv/
 data/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Mac
+.DS_Store
+
+# Env
+.env
